@@ -43,7 +43,7 @@ protected:
         if (show_test_window)
         {
             ImGui::SetNextWindowPos(ImVec2(650, 20), ImGuiSetCond_FirstUseEver);
-            ImGui::ShowTestWindow(&show_test_window);
+            ImGui::ShowTestWindow();
         }
 
         // Do render before ImGui UI is rendered
@@ -72,6 +72,7 @@ int main(int argc, char *argv[])
 
     // Show window
     DemoWindow w;
+    w.setWindowTitle("QtImGui widget example");
     w.resize(1280, 720);
     w.show();
 
