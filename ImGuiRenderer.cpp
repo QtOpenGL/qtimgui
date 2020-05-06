@@ -23,6 +23,7 @@ QHash<int, ImGuiKey> keyMap = {
     { Qt::Key_Delete, ImGuiKey_Delete },
     { Qt::Key_Backspace, ImGuiKey_Backspace },
     { Qt::Key_Enter, ImGuiKey_Enter },
+    { Qt::Key_Return, ImGuiKey_Enter },
     { Qt::Key_Escape, ImGuiKey_Escape },
     { Qt::Key_A, ImGuiKey_A },
     { Qt::Key_C, ImGuiKey_C },
@@ -297,9 +298,10 @@ void ImGuiRenderer::newFrame()
         io.MouseDown[i] = g_MousePressed[i];
     }
 
-    io.MouseWheelH = g_MouseWheel.x();
-    io.MouseWheel = g_MouseWheel.y();
-    g_MouseWheel = QPointF();
+    io.MouseWheelH = g_MouseWheelH;
+    io.MouseWheel = g_MouseWheel;
+    g_MouseWheelH = 0;
+    g_MouseWheel = 0;
 
     // Hide OS mouse cursor if ImGui is drawing it
     // glfwSetInputMode(g_Window, GLFW_CURSOR, io.MouseDrawCursor ? GLFW_CURSOR_HIDDEN : GLFW_CURSOR_NORMAL);
@@ -317,8 +319,24 @@ void ImGuiRenderer::onMousePressedChange(QMouseEvent *event)
 
 void ImGuiRenderer::onWheel(QWheelEvent *event)
 {
-    // 5 lines per unit
-    g_MouseWheel += QPointF(event->pixelDelta()) / (5.0 * ImGui::GetTextLineHeight());
+    // Handle horizontal component
+    if(event->pixelDelta().x() != 0)
+    {
+        g_MouseWheelH += event->pixelDelta().x() / (ImGui::GetTextLineHeight());
+    } else {
+        // Magic number of 120 comes from Qt doc on QWheelEvent::pixelDelta()
+        g_MouseWheelH += event->angleDelta().x() / 120;
+    }
+
+    // Handle vertical component
+    if(event->pixelDelta().y() != 0)
+    {
+        // 5 lines per unit
+        g_MouseWheel += event->pixelDelta().y() / (5.0 * ImGui::GetTextLineHeight());
+    } else {
+        // Magic number of 120 comes from Qt doc on QWheelEvent::pixelDelta()
+        g_MouseWheel += event->angleDelta().y() / 120;
+    }
 }
 
 void ImGuiRenderer::onKeyPressRelease(QKeyEvent *event)
