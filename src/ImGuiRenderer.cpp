@@ -6,6 +6,17 @@
 #include <QCursor>
 #include <QDebug>
 
+#ifdef ANDROID
+#define GL_VERTEX_ARRAY_BINDING           0x85B5 // Missing in android as of May 2020
+#define USE_GLSL_ES
+#endif
+
+#ifdef USE_GLSL_ES
+#define IMGUIRENDERER_GLSL_VERSION "#version 300 es\n"
+#else
+#define IMGUIRENDERER_GLSL_VERSION "#version 330\n"
+#endif
+
 namespace QtImGui {
 
 namespace {
@@ -31,6 +42,7 @@ QHash<int, ImGuiKey> keyMap = {
     { Qt::Key_X, ImGuiKey_X },
     { Qt::Key_Y, ImGuiKey_Y },
     { Qt::Key_Z, ImGuiKey_Z },
+    { Qt::MiddleButton, ImGuiMouseButton_Middle }
 };
 
 QByteArray g_currentClipboardText;
@@ -41,16 +53,17 @@ void ImGuiRenderer::initialize(WindowWrapper *window) {
     m_window.reset(window);
     initializeOpenGLFunctions();
 
-    ImGui::CreateContext();
+    g_ctx = ImGui::CreateContext();
+    ImGui::SetCurrentContext(g_ctx);
 
     ImGuiIO &io = ImGui::GetIO();
     for (ImGuiKey key : keyMap.values()) {
         io.KeyMap[key] = key;
     }
-
-    io.RenderDrawListsFn = [](ImDrawData *drawData) {
-        instance()->renderDrawList(drawData);
-    };
+    
+    // io.RenderDrawListsFn = [](ImDrawData *drawData) {
+    //    instance()->renderDrawList(drawData);
+    // };
     io.SetClipboardTextFn = [](void *user_data, const char *text) {
         Q_UNUSED(user_data);
         QGuiApplication::clipboard()->setText(text);
@@ -66,6 +79,9 @@ void ImGuiRenderer::initialize(WindowWrapper *window) {
 
 void ImGuiRenderer::renderDrawList(ImDrawData *draw_data)
 {
+    // Select current context
+    ImGui::SetCurrentContext(g_ctx);
+
     // Avoid rendering when minimized, scale coordinates for retina displays (screen coordinates != framebuffer coordinates)
     ImGuiIO& io = ImGui::GetIO();
     int fb_width = (int)(io.DisplaySize.x * io.DisplayFramebufferScale.x);
@@ -137,7 +153,7 @@ void ImGuiRenderer::renderDrawList(ImDrawData *draw_data)
             }
             else
             {
-                glBindTexture(GL_TEXTURE_2D, (GLuint)(intptr_t)pcmd->TextureId);
+                glBindTexture(GL_TEXTURE_2D, (GLuint)(size_t)pcmd->TextureId);
                 glScissor((int)pcmd->ClipRect.x, (int)(fb_height - pcmd->ClipRect.w), (int)(pcmd->ClipRect.z - pcmd->ClipRect.x), (int)(pcmd->ClipRect.w - pcmd->ClipRect.y));
                 glDrawElements(GL_TRIANGLES, (GLsizei)pcmd->ElemCount, sizeof(ImDrawIdx) == 2 ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT, idx_buffer_offset);
             }
@@ -164,6 +180,9 @@ void ImGuiRenderer::renderDrawList(ImDrawData *draw_data)
 
 bool ImGuiRenderer::createFontsTexture()
 {
+    // Select current context
+    ImGui::SetCurrentContext(g_ctx);
+
     // Build texture atlas
     ImGuiIO& io = ImGui::GetIO();
     unsigned char* pixels;
@@ -180,7 +199,7 @@ bool ImGuiRenderer::createFontsTexture()
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
 
     // Store our identifier
-    io.Fonts->TexID = (void *)(intptr_t)g_FontTexture;
+    io.Fonts->TexID = (void *)(size_t)g_FontTexture;
 
     // Restore state
     glBindTexture(GL_TEXTURE_2D, last_texture);
@@ -190,6 +209,9 @@ bool ImGuiRenderer::createFontsTexture()
 
 bool ImGuiRenderer::createDeviceObjects()
 {
+    // Select current context
+    ImGui::SetCurrentContext(g_ctx);
+
     // Backup GL state
     GLint last_texture, last_array_buffer, last_vertex_array;
     glGetIntegerv(GL_TEXTURE_BINDING_2D, &last_texture);
@@ -197,7 +219,7 @@ bool ImGuiRenderer::createDeviceObjects()
     glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &last_vertex_array);
 
     const GLchar *vertex_shader =
-        "#version 330\n"
+        IMGUIRENDERER_GLSL_VERSION
         "uniform mat4 ProjMtx;\n"
         "in vec2 Position;\n"
         "in vec2 UV;\n"
@@ -212,7 +234,8 @@ bool ImGuiRenderer::createDeviceObjects()
         "}\n";
 
     const GLchar* fragment_shader =
-        "#version 330\n"
+        IMGUIRENDERER_GLSL_VERSION
+        "precision mediump float;"
         "uniform sampler2D Texture;\n"
         "in vec2 Frag_UV;\n"
         "in vec4 Frag_Color;\n"
@@ -267,6 +290,9 @@ bool ImGuiRenderer::createDeviceObjects()
 
 void ImGuiRenderer::newFrame()
 {
+    // Select current context
+    ImGui::SetCurrentContext(g_ctx);
+
     if (!g_FontTexture)
         createDeviceObjects();
 
@@ -310,6 +336,26 @@ void ImGuiRenderer::newFrame()
     ImGui::NewFrame();
 }
 
+void ImGuiRenderer::render()
+{
+  // Select current context
+  ImGui::SetCurrentContext(g_ctx);
+
+  auto drawData = ImGui::GetDrawData();
+  renderDrawList(drawData);
+}
+
+ImGuiRenderer::ImGuiRenderer()
+  : g_ctx(nullptr)
+{
+}
+
+ImGuiRenderer::~ImGuiRenderer()
+{
+  // remove this context
+  ImGui::DestroyContext(g_ctx);
+}
+
 void ImGuiRenderer::onMousePressedChange(QMouseEvent *event)
 {
     g_MousePressed[0] = event->buttons() & Qt::LeftButton;
@@ -319,6 +365,9 @@ void ImGuiRenderer::onMousePressedChange(QMouseEvent *event)
 
 void ImGuiRenderer::onWheel(QWheelEvent *event)
 {
+    // Select current context
+    ImGui::SetCurrentContext(g_ctx);
+
     // Handle horizontal component
     if(event->pixelDelta().x() != 0)
     {
@@ -341,6 +390,9 @@ void ImGuiRenderer::onWheel(QWheelEvent *event)
 
 void ImGuiRenderer::onKeyPressRelease(QKeyEvent *event)
 {
+    // Select current context
+    ImGui::SetCurrentContext(g_ctx);
+
     ImGuiIO& io = ImGui::GetIO();
     if (keyMap.contains(event->key())) {
         io.KeysDown[keyMap[event->key()]] = event->type() == QEvent::KeyPress;
@@ -368,22 +420,24 @@ void ImGuiRenderer::onKeyPressRelease(QKeyEvent *event)
 
 bool ImGuiRenderer::eventFilter(QObject *watched, QEvent *event)
 {
+  if (watched == m_window->object()) {
     switch (event->type()) {
     case QEvent::MouseButtonPress:
     case QEvent::MouseButtonRelease:
-        this->onMousePressedChange(static_cast<QMouseEvent *>(event));
-        break;
+      this->onMousePressedChange(static_cast<QMouseEvent*>(event));
+      break;
     case QEvent::Wheel:
-        this->onWheel(static_cast<QWheelEvent *>(event));
-        break;
+      this->onWheel(static_cast<QWheelEvent*>(event));
+      break;
     case QEvent::KeyPress:
     case QEvent::KeyRelease:
-        this->onKeyPressRelease(static_cast<QKeyEvent *>(event));
-        break;
+      this->onKeyPressRelease(static_cast<QKeyEvent*>(event));
+      break;
     default:
-        break;
+      break;
     }
-    return QObject::eventFilter(watched, event);
+  }
+  return QObject::eventFilter(watched, event);
 }
 
 ImGuiRenderer* ImGuiRenderer::instance() {

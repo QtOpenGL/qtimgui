@@ -9,8 +9,12 @@ It enables ImGui to run in QOpenGLWidget / QOpenGLWindow.
 ## How to use
 
 * Add QtImGui sources and headers to your project
-    * If you are using git submodule, run `git submodule update --init --recursive` to ensure that the inner submodule is initialized as well.
-* Add `include(path/to/qtimgui.pri)` to youre `.pro` file
+  * If you are using git submodule, run `git submodule update --init --recursive` to ensure that the inner submodule is initialized as well.
+* CMake:
+  * Add `add_subdirectory(path/to/qtimgui)` to your `CMakeLists.txt` file
+  * Link `qt_imgui_quick` (for Qt Quick apps or apps that don't use QOpenGLWidget) or `qt_imgui_widget` (for apps using QOpenGLWidget)
+* qmake:
+  * Add `include(path/to/qtimgui/qtimgui.pri)` to your `.pro` file
 * Subclass `QOpenGLWindow` or `QOpenGLWidget` and:
 
 ```cpp
@@ -35,4 +39,14 @@ protected:
 };
 ```
 
-See [QOpenGLWidget example](demo-widget/demo-widget.cpp) and [QOpenGLWindow example](/demo-window/demo-window.cpp) for details.
+See [QOpenGLWidget example](examples/widget) and [QOpenGLWindow example](examples/window) for details.
+
+## Specific notes for Android, when using cmake
+
+Two projects are provided: `qtimgui.pro` and `CMakaLists.txt`.
+
+When using cmake under Android, this project will uses [qt-android-cmake](https://github.com/LaurentGomila/qt-android-cmake), which is a CMake utility for building and deploying Qt based applications on Android without QtCreator.
+
+*In order to successfuly deploy the app to a device, the cmake variable ANDROID_NATIVE_API_LEVEL should elevated to 21 or 26 (depending on the native levels installed in your android sdk)
+ You will need to set it via the cmake command line, or inside Qt Creator (in the project view).*
+

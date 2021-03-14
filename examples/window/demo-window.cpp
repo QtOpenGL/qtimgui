@@ -52,6 +52,7 @@ protected:
         glClear(GL_COLOR_BUFFER_BIT);
 
         ImGui::Render();
+        QtImGui::render();
     }
 
 private:
@@ -62,13 +63,16 @@ private:
 
 int main(int argc, char *argv[])
 {
-    // Use OpenGL 3 Core Profile
-    QSurfaceFormat glFormat;
-    glFormat.setVersion(3, 3);
-    glFormat.setProfile(QSurfaceFormat::CoreProfile);
-    QSurfaceFormat::setDefaultFormat(glFormat);
-
     QGuiApplication a(argc, argv);
+
+    // Use OpenGL 3 Core Profile, when available
+    QSurfaceFormat glFormat;
+    if (QOpenGLContext::openGLModuleType() == QOpenGLContext::LibGL)
+    {
+        glFormat.setVersion(3, 3);
+        glFormat.setProfile(QSurfaceFormat::CoreProfile);
+    }
+    QSurfaceFormat::setDefaultFormat(glFormat);
 
     // Show window
     DemoWindow w;
